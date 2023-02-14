@@ -7,5 +7,5 @@
 ### checks the open orders and used to perform buy and sell trading
 
 ### CheckExit ->
-### If their is an error then exits from the trade
+### If there is an error then exits from the trade
 
