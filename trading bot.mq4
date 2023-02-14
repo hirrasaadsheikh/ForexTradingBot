@@ -1,7 +1,7 @@
 //+------------------------------------------------------------------+
-//|                                                  
 //|                                                                  |
-//|
+//|                                                                  |
+//|                                                                  |
 //+------------------------------------------------------------------+
 #define SLEEP_OK     250
 #define SLEEP_ERR    250
@@ -17,6 +17,7 @@ int Digitss;
 int Stops;
 double Points;
 double ProfitPerPip;
+int pips;
 
 bool Initialized = FALSE;
 bool Running = FALSE;
@@ -208,6 +209,12 @@ int CheckExit()
 //+------------------------------------------------------------------+
 int init()
   {
+   double tickSize = MarketInfo(Symbol(), MODE_TICKSIZE);
+   if(tickSize == 0.00001 || tickSize == 0.001)
+      pips = tickSize*10;
+   else
+      pips = tickSize;
+      
    Digitss = MarketInfo(Symbol(), MODE_DIGITS);
    Points = MarketInfo(Symbol(), MODE_POINT);
    Stops = MarketInfo(Symbol(), MODE_STOPLEVEL);
@@ -268,3 +275,4 @@ int start()
   }
 
 //+------------------------------------------------------------------+
+
