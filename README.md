@@ -9,3 +9,5 @@
 ### CheckExit ->
 ### If there is an error then exits from the trade
 
+### Take Profit and Stop loss
+### It closes after the each profit and start the new trade
