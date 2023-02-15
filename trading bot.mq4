@@ -27,7 +27,7 @@ int deinit()
   return(0);
 }
 //+------------------------------------------------------------------+ 
-//| Check for cross over of ,Moving Average                          | 
+//| Check for cross over of Moving Average                          | 
 //+------------------------------------------------------------------+ 
 int CheckForCross(double input1, double input2)
 {
