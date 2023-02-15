@@ -3,276 +3,160 @@
 //|                                                                  |
 //|                                                                  |
 //+------------------------------------------------------------------+
-#define SLEEP_OK     250
-#define SLEEP_ERR    250
-//---- input parameters
-extern int     Magic = 12346;
-extern int     slippage = 3; //the maximum allowed deviation from the requested price for an order
-extern int     Profit = 50;
-extern int     StopLoss = 100;
-extern double  LotSize = 0.10;
-extern bool    StpMode = TRUE; //the order will be sent as a Stop Order
-
-int Digitss;
-int Stops;
-double Points;
-double ProfitPerPip;
-int pips;
-
-bool Initialized = FALSE;
-bool Running = FALSE;
-int OrderNumber;
-double PositionSize;
-double LastBid;
-double LastAsk;
-color  buyClr = Yellow;
-color  sellClr = Green;
-
-//+------------------------------------------------------------------+
-//| Utility functions                                                |
-//+------------------------------------------------------------------+
-#include <stdlib.mqh>
-#include <stderror.mqh>
-#include <WinUser32.mqh>
-//+------------------------------------------------------------------+
-//| Calculates a position size                      |
-//+------------------------------------------------------------------+
-double sizeOfLot()
-  {
-   int Index;
-   double lotSIze = 0.10;
-   double Loss = 0;
-
-   for(Index = OrdersHistoryTotal() - 1; Index >= 0; Index--)
-     {
-      if(OrderSelect(Index, SELECT_BY_POS, MODE_HISTORY) == TRUE)
-         continue;
-      if((OrderSymbol() == Symbol()) && (OrderMagicNumber() == Magic))
-        {
-         if(OrderProfit() <= 0)
-           {
-            Loss = Loss - OrderProfit();  // Add up our previous losses
-            lotSIze = 1 + MathRound(0.5 + Loss / (ProfitPerPip * LotSize * Profit));
-           }
-         else
-           {
-            break;
-           }
-
-        }
-     }
-   Print("Loss = ", Loss, ", lotSize = ", lotSIze);
-   return (LotSize * lotSIze);
-  }
-
-//+------------------------------------------------------------------+
-//| Place an order                                                  |
-//+------------------------------------------------------------------+
-int Order(string symbol, int Type, double Entry, double Quantity, double TargetPrice, double StopPrice, string comment="ORDER")
-  {
-   string TypeStr;
-   color  TypeColor;
-   int    ErrorCode, Ticket;
-   double Price, FillPrice;
-
-   Price = NormalizeDouble(Entry, Digitss);
-
-   switch(Type)
-     {
-      case OP_BUY:
-         TypeStr = "BUY";
-         TypeColor = buyClr;
-         break;
-      case OP_SELL:
-         TypeStr = "SELL";
-         TypeColor = sellClr;
-         break;
-      default:
-         Print("Unknown order type ", Type);
-         break;
-     }
-
-   if(StpMode)
-     {
-      Ticket = OrderSend(symbol, Type, Quantity, Price, slippage, 0, 0, "ORDER", Magic, 0, TypeColor);
-     }
-   else
-     {
-      Ticket = OrderSend(symbol, Type, Quantity, Price, slippage, StopPrice, TargetPrice, "ORDER", Magic, 0, TypeColor);
-     }
-   if(Ticket >= 0)
-     {
-      Sleep(SLEEP_OK);
-      if(OrderSelect(Ticket, SELECT_BY_TICKET) == TRUE)
-        {
-         FillPrice = OrderOpenPrice();
-         if(Entry != FillPrice)
-           {
-            RefreshRates();
-            Print("slippage on order ", Ticket, " - Requested = ",
-                  Entry, ", Fill = ", FillPrice, ", Current Bid = ",
-                  Bid, ", Current Ask = ", Ask);
-           }
-         if(StpMode && ((StopPrice > 0) || (TargetPrice > 0)))
-           {
-            if(OrderModify(Ticket, FillPrice, StopPrice, TargetPrice, 0, TypeColor))
-              {
-               Sleep(SLEEP_OK);
-               return (Ticket);
-              }
-           }
-        }
-      else
-        {
-         ErrorCode = GetLastError();
-         Print("Error selecting new order ", Ticket, ": ",
-               ErrorDescription(ErrorCode), " (", ErrorCode, ")");
-        }
-      return (Ticket);
-     }
-
-   ErrorCode = GetLastError();
-   RefreshRates();
-   Print("Error opening ", TypeStr, " order: ", ErrorDescription(ErrorCode),
-         " (", ErrorCode, ")", ", Entry = ", Price, ", Target = ",
-         TargetPrice, ", Stop = ", StopPrice, ", Current Bid = ", Bid,
-         ", Current Ask = ", Ask);
-   Sleep(SLEEP_ERR);
-
-   return (-1);
-  }
-
-//+------------------------------------------------------------------+
-//| Performs system initialisation                                   |
-//+------------------------------------------------------------------+
-void InitSystem()
-  {
-   Running = FALSE;
-
-   PositionSize = sizeOfLot();
-
-   RefreshRates();
-   LastBid = Bid;
-   LastAsk = Ask;
-
-   Initialized = TRUE;
-  }
-
-//+------------------------------------------------------------------+
-//| Checks for entry to a trade                                      |
-//+------------------------------------------------------------------+
-int CheckEntry(double Size)
-  {
-   if(Ask > LastAsk)     //BUY Order
-     {
-      OrderNumber = Order(Symbol(), OP_BUY, Ask, Size, Ask + (Points * Profit), Bid - (Points * StopLoss));
-      if(OrderNumber > 0)
-         return(1);
-     }
-   else
-      if(Bid < LastBid)     //SELL Order
-        {
-         OrderNumber = Order(Symbol(), OP_SELL, Bid, Size, Bid - (Points * Profit), Ask + (Points * StopLoss));
-         if(OrderNumber > 0)
-            return(1);
-        }
-   return(0);
-  }
-
-//+------------------------------------------------------------------+
-//| Checks for exit from a trade                                     |
-//+------------------------------------------------------------------+
-int CheckExit()
-  {
-   int ErrorCode;
-
-   if(OrderSelect(OrderNumber, SELECT_BY_TICKET) != TRUE)
-     {
-      ErrorCode = GetLastError();
-      Print("Error selecting order ", OrderNumber, ": ", ErrorDescription(ErrorCode), " (", ErrorCode, ")");
-      return(-1);
-     }
-   else
-      if(OrderCloseTime() > 0)
-        {
-         Print("Order ", OrderNumber, " closed: ", OrderClosePrice(), ", at ", TimeToStr(OrderCloseTime()));
-         return(1);
-        }
-      else
-        {
-         return(0);
-        }
-  }
-
-//+------------------------------------------------------------------+
-//| Expert initialization function                                   |
-//+------------------------------------------------------------------+
+#property copyright "2017, Tom Whitbread." 
+#property link "http://www.gript.co.uk" 
+#property description "Smoothed Moving Average sample expert advisor" 
+#define MAGICNUM 20131111 
+// Define our Parameters 
+input double Lots          = 0.1;
+input int PeriodOne        = 40; // The period for the first SMA 
+input int PeriodTwo        = 100; // The period for the second SMA 
+input int TakeProfit       = 100; // The take profit level 
+input int StopLoss         = 80; // The default stop loss 
+//+------------------------------------------------------------------+ 
+//| expert initialization functions | 
+//+------------------------------------------------------------------+ 
 int init()
-  {
-   double tickSize = MarketInfo(Symbol(), MODE_TICKSIZE);
-   if(tickSize == 0.00001 || tickSize == 0.001)
-      pips = tickSize*10;
-   else
-      pips = tickSize;
-      
-   Digitss = MarketInfo(Symbol(), MODE_DIGITS);
-   Points = MarketInfo(Symbol(), MODE_POINT);
-   Stops = MarketInfo(Symbol(), MODE_STOPLEVEL);
-   ProfitPerPip = 100000 / MathPow(10, Digitss);
-
-   Print("Profit per pip per lot = ", ProfitPerPip, ", Stops = ", Stops, ", Digits = ", Digitss, ", Points = ", DoubleToStr(Points, 5));
-
-   if(!IsDemo() && !IsTesting())
-     {
-      Print("Initialization Failure");
-      return(-1);
-     }
-
-   InitSystem();
-
-   Print("Initialized OK");
-
-   return(0);
-  }
-
-//+------------------------------------------------------------------+
-//| Expert deinitialization function                                 |
-//+------------------------------------------------------------------+
+{
+  return(0);
+}
 int deinit()
-  {
-   Print("DeInitialized OK");
-
-   return(0);
+{
+  Print("DeInitialized OK");
+  return(0);
+}
+//+------------------------------------------------------------------+ 
+//| Check for cross over of SMA | 
+//+------------------------------------------------------------------+ 
+int CheckForCross(double input1, double input2)
+{
+  static int previous_direction = 0;
+  static int current_direction  = 0;
+  // Up Direction = 1 
+  if(input1 > input2){
+    current_direction = 1;
   }
-
-//+------------------------------------------------------------------+
-//| Expert start function                                            |
-//| Executed on every tick                                           |
-//+------------------------------------------------------------------+
+  // Down Direction = 2 
+  if(input1 < input2){
+    current_direction = 2;
+  }
+  // Detect a direction change 
+  if(current_direction != previous_direction){
+    previous_direction = current_direction;
+    return (previous_direction);
+  } else {
+    return (0);
+  }
+}
+//+------------------------------------------------------------------+ 
+//| Calculate optimal lot size | 
+//+------------------------------------------------------------------+ 
+double LotsOptimized()
+  {
+   double lot = Lots;
+   // Calculate Lot size as a fifth of available free equity. 
+   lot = NormalizeDouble((AccountFreeMargin()/5)/1000.0,1);
+   if(lot<0.1) lot=0.1; //Ensure the minimal amount is 0.1 lots 
+   return(lot);
+  }
+//+------------------------------------------------------------------+ 
+//+ Break Even | 
+//+------------------------------------------------------------------+ 
+bool BreakEven(int MN){
+  int Ticket;
+  for(int i = OrdersTotal() - 1; i >= 0; i--) {
+    OrderSelect(i, SELECT_BY_POS, MODE_TRADES);
+    if(OrderSymbol() == Symbol() && OrderMagicNumber() == MN){
+      Ticket = OrderModify(OrderTicket(), OrderOpenPrice(), OrderOpenPrice(), OrderTakeProfit(), 0, Green);
+      if(Ticket < 0) Print("Error in Break Even : ", GetLastError());
+        break;
+      }
+    }
+  return(Ticket);
+}
+//+------------------------------------------------------------------+ 
+//+ Run the algorithm | 
+//+------------------------------------------------------------------+ 
 int start()
-  {
-   if(!Initialized)
-     {
-      return(-1);
-     }
-   else
-      if(Running)
-        {
-         if(CheckExit() > 0)
-           {
-            Initialized = FALSE;
-            InitSystem();
-           }
-        }
-      else
-        {
-         if(CheckEntry(PositionSize) > 0)
-           {
-            Running = TRUE;
-           }
-        }
-   return(0);
+{
+  int cnt, ticket, total;
+  double shortSma, longSma, ShortSL, ShortTP, LongSL, LongTP;
+  // Parameter Sanity checking 
+  if(PeriodTwo < PeriodOne){
+    Print("Please check settings, Period Two is lesser then the first period");
+    return(0);
   }
-
-//+------------------------------------------------------------------+
-
+  if(Bars < PeriodTwo){
+    Print("Please check settings, less then the second period bars available for the long SMA");
+    return(0);
+  }
+  // Calculate the SMAs from the iMA indicator in MODE_SMMA using the close price 
+  shortSma = iMA(NULL, 0, PeriodOne, 0, MODE_SMMA, PRICE_CLOSE, 0);
+  longSma = iMA(NULL, 0, PeriodTwo, 0, MODE_SMMA, PRICE_CLOSE, 0);
+  // Check if there has been a cross on this tick from the two SMAs 
+  int isCrossed = CheckForCross(shortSma, longSma);
+  // Get the current total orders 
+  total = OrdersTotal();
+  // Calculate Stop Loss and Take profit 
+  if(StopLoss > 0){
+    ShortSL = Bid+(StopLoss*Point);
+    LongSL = Ask-(StopLoss*Point);
+  }
+  if(TakeProfit > 0){
+    ShortTP = Bid-(TakeProfit*Point);
+    LongTP = Ask+(TakeProfit*Point);
+  }
+  // Only open one trade at a time.. 
+  if(total < 1){
+    // Buy - Long position 
+    if(isCrossed == 1){
+        ticket = OrderSend(Symbol(), OP_BUY, LotsOptimized(),Ask,5, LongSL, LongTP, "Double SMA Crossover",MAGICNUM,0,Blue);
+        if(ticket > 0){
+          if(OrderSelect(ticket, SELECT_BY_TICKET, MODE_TRADES))
+            Print("BUY Order Opened: ", OrderOpenPrice(), " SL:", LongSL, " TP: ", LongTP);
+          }
+          else
+            Print("Error Opening BUY Order: ", GetLastError());
+            return(0);
+        }
+    // Sell - Short position 
+    if(isCrossed == 2){
+      ticket = OrderSend(Symbol(), OP_SELL, LotsOptimized(),Bid,5, ShortSL, ShortTP, "Double SMA Crossover",MAGICNUM,0,Red);
+      if(ticket > 0){
+        if(OrderSelect(ticket, SELECT_BY_TICKET, MODE_TRADES))
+          Print("SELL Order Opened: ", OrderOpenPrice(), " SL:", ShortSL, " TP: ", ShortTP);
+        }
+        else
+          Print("Error Opening SELL Order: ", GetLastError());
+          return(0);
+      }
+    }
+  // Manage open orders for exit criteria 
+  for(cnt = 0; cnt < total; cnt++){
+    OrderSelect(cnt, SELECT_BY_POS, MODE_TRADES);
+    if(OrderType() <= OP_SELL && OrderSymbol() == Symbol()){
+      // Look for long positions 
+      if(OrderType() == OP_BUY){
+        // Check for Exit criteria on buy - change of direction 
+        if(isCrossed == 2){
+          OrderClose(OrderTicket(), OrderLots(), Bid, 3, Violet); // Close the position 
+          return(0);
+        }
+      }
+      else //Look for short positions - inverse of prior conditions 
+      {
+        // Check for Exit criteria on sell - change of direction 
+        if(isCrossed == 1){
+          OrderClose(OrderTicket(), OrderLots(), Ask, 3, Violet); // Close the position 
+          return(0);
+        }
+      }
+      // If we are in a loss - Try to BreakEven 
+      Print("Current Unrealized Profit on Order: ", OrderProfit());
+      if(OrderProfit() < 0){
+        BreakEven(MAGICNUM);
+      }
+    }
+  }
+  return(0);
+}
