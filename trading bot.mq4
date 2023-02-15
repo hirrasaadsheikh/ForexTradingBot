@@ -15,7 +15,7 @@ input int PeriodTwo        = 80; // The period for the second SMA
 input int TakeProfit       = 100; // The take profit level 
 input int StopLoss         = 80; // The default stop loss 
 //+------------------------------------------------------------------+ 
-//| expert initialization functions | 
+//| expert initialization functions                                  | 
 //+------------------------------------------------------------------+ 
 int init()
 {
@@ -27,7 +27,7 @@ int deinit()
   return(0);
 }
 //+------------------------------------------------------------------+ 
-//| Check for cross over of SMA | 
+//| Check for cross over of ,Moving Average                          | 
 //+------------------------------------------------------------------+ 
 int CheckForCross(double input1, double input2)
 {
@@ -50,7 +50,7 @@ int CheckForCross(double input1, double input2)
   }
 }
 //+------------------------------------------------------------------+ 
-//| Calculate optimal lot size | 
+//| Calculate optimal lot size                                       | 
 //+------------------------------------------------------------------+ 
 double LotsOptimized()
   {
@@ -61,7 +61,7 @@ double LotsOptimized()
    return(lot);
   }
 //+------------------------------------------------------------------+ 
-//+ Break Even | 
+//+ Break Even                                                       | 
 //+------------------------------------------------------------------+ 
 bool BreakEven(int MN){
   int Ticket;
@@ -76,7 +76,7 @@ bool BreakEven(int MN){
   return(Ticket);
 }
 //+------------------------------------------------------------------+ 
-//+ Run the algorithm | 
+//+ It works like onTick Function                                    | 
 //+------------------------------------------------------------------+ 
 int start()
 {
