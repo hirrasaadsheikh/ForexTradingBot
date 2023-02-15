@@ -10,5 +10,5 @@
 ### Take Profit and Stop loss
 ### It closes after the each profit and start the new trade
 
-### BreakEven Function
+### BreakEven Function ->
 ### break-even function used when the market has changed against us to create a loss substantially from opening, we look to exit with minimal loss and at least break even so as to retain our capital.
