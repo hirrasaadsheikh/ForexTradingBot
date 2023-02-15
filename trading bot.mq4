@@ -1,16 +1,17 @@
 //+------------------------------------------------------------------+
-//|                                                                  |
-//|                                                                  |
-//|                                                                  |
+//|                                               Moving Average.mq4 |
+//|                   Copyright 2005-2014, MetaQuotes Software Corp. |
+//|                                              http://www.mql4.com |
 //+------------------------------------------------------------------+
 #property copyright "2017, Tom Whitbread." 
 #property link "http://www.gript.co.uk" 
-#property description "Smoothed Moving Average sample expert advisor" 
+#property description "ForexTradingBot" 
+
 #define MAGICNUM 20131111 
 // Define our Parameters 
 input double Lots          = 0.1;
-input int PeriodOne        = 40; // The period for the first SMA 
-input int PeriodTwo        = 100; // The period for the second SMA 
+input int PeriodOne        = 30; // The period for the first SMA 
+input int PeriodTwo        = 80; // The period for the second SMA 
 input int TakeProfit       = 100; // The take profit level 
 input int StopLoss         = 80; // The default stop loss 
 //+------------------------------------------------------------------+ 
