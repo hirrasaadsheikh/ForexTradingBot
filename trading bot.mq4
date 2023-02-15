@@ -1,63 +1,119 @@
+//+------------------------------------------------------------------+
+//|                                                      ProjectName |
+//|                                      Copyright 2018, CompanyName |
+//|                                       http://www.companyname.net |
+//+------------------------------------------------------------------+
 #property copyright   "2005-2014, MetaQuotes Software Corp."
 #property link        "http://www.mql4.com"
 #property description "Forex Trading Bot"
 
 #define MAGICNUM 20131111 
-// Define our Parameters 
-input double Lots          = 0.1;
-input int PeriodOne        = 30; // The period for the first SMA 
-input int PeriodTwo        = 80; // The period for the second SMA 
-input int TakeProfit       = 100; // The take profit level 
-input int StopLoss         = 80; // The default stop loss 
-//+------------------------------------------------------------------+ 
-//| expert initialization functions                                  | 
-//+------------------------------------------------------------------+ 
+// External variables
+extern double LotSize = 0.1;
+extern double StopLoss = 50;
+extern double TakeProfit = 100;
+extern int Slippage = 5;
+extern int MagicNumber = 123;
+extern int FastMAPeriod = 10;
+extern int SlowMAPeriod = 20;
+
+// Global variables
+int BuyTicket;
+int SellTicket;
+int TickCount=0;
+
+double UsePoint;
+int UseSlippage;
+// Init function
 int init()
-{
-  return(0);
-}
-int deinit()
-{
-  Print("DeInitialized OK");
-  return(0);
-}
-//+------------------------------------------------------------------+ 
-//| Check for cross over of Moving Average                          | 
-//+------------------------------------------------------------------+ 
-int CheckForCross(double input1, double input2)
-{
-  static int previous_direction = 0;
-  static int current_direction  = 0;
-  // Up Direction = 1 
-  if(input1 > input2){
-    current_direction = 1;
-  }
-  // Down Direction = 2 
-  if(input1 < input2){
-    current_direction = 2;
-  }
-  // Detect a direction change 
-  if(current_direction != previous_direction){
-    previous_direction = current_direction;
-    return (previous_direction);
-  } else {
-    return (0);
-  }
-}
-//+------------------------------------------------------------------+ 
-//| Calculate optimal lot size                                       | 
-//+------------------------------------------------------------------+ 
-double LotsOptimized()
   {
-   double lot = Lots;
-   // Calculate Lot size as a fifth of available free equity. 
-   lot = NormalizeDouble((AccountFreeMargin()/5)/1000.0,1);
-   if(lot<0.1) lot=0.1; //Ensure the minimal amount is 0.1 lots 
-   return(lot);
+   UsePoint = PipPoint(Symbol());
+   UseSlippage = GetSlippage(Symbol(),Slippage);
   }
-//+------------------------------------------------------------------+ 
-//+ Break Even                                                       | 
-//+------------------------------------------------------------------+ 
+//+------------------------------------------------------------------+
+//+ Start onTick Function                                            |
+//+------------------------------------------------------------------+
+int start()
+  {
+   double balance = AccountBalance();
+   TickCount++;
+   Comment("Current Account Balance: ",balance, "\nTicks Received:", TickCount);
+// Moving averages
+   double FastMA = iMA(NULL,0,FastMAPeriod,0,0,0,0);
+   double SlowMA = iMA(NULL,0,SlowMAPeriod,0,0,0,0);
+// Buy order
+   if(FastMA > SlowMA && BuyTicket == 0)
+     {
+      OrderSelect(SellTicket,SELECT_BY_TICKET);
+      // Close order
+      if(OrderCloseTime() == 0 && SellTicket > 0)
+        {
+         double CloseLots = OrderLots();
+         double ClosePrice = Ask;
+         bool Closed = OrderClose(SellTicket,CloseLots,ClosePrice,UseSlippage,Red);
+        }
+      double OpenPrice = Ask;
+      // Calculate stop loss and take profit
+      if(StopLoss > 0)
+         double BuyStopLoss = OpenPrice - (StopLoss * UsePoint);
+      if(TakeProfit > 0)
+         double BuyTakeProfit = OpenPrice + (TakeProfit * UsePoint);
+      // Open buy order
+      BuyTicket = OrderSend(Symbol(),OP_BUY,LotSize,OpenPrice,UseSlippage,BuyStopLoss,BuyTakeProfit,"Buy Order",MagicNumber,0,Green);
+      SellTicket = 0;
+     }
+// Sell Order
+   if(FastMA < SlowMA && SellTicket == 0)
+     {
+      OrderSelect(BuyTicket,SELECT_BY_TICKET);
+      if(OrderCloseTime() == 0 && BuyTicket > 0)
+        {
+         CloseLots = OrderLots();
+         ClosePrice = Bid;
+         Closed = OrderClose(BuyTicket,CloseLots,ClosePrice,UseSlippage,Red);
+        }
+      OpenPrice = Bid;s
+      if(StopLoss > 0)
+         double SellStopLoss = OpenPrice + (StopLoss * UsePoint);
+      if(TakeProfit > 0)
+         double SellTakeProfit = OpenPrice - (TakeProfit * UsePoint);
+      SellTicket = OrderSend(Symbol(),OP_SELL,LotSize,OpenPrice,UseSlippage,SellStopLoss,SellTakeProfit,"Sell Order",MagicNumber,0,Red);
+      BuyTicket = 0;
+     }
+      // If we are in a loss - Try to BreakEven 
+      Print("Current Unrealized Profit on Order: ", OrderProfit());
+      if(OrderProfit() < 0){
+        BreakEven(MAGICNUM);
+      }
+   return(0);
+  }
+//+------------------------------------------------------------------+
+//+ PIPs Function                                                    |
+//+------------------------------------------------------------------+
+double PipPoint(string Currency)
+  {
+   int CalcDigits = MarketInfo(Currency,MODE_DIGITS);
+   if(CalcDigits == 2 || CalcDigits == 3)
+      double CalcPoint = 0.01;
+   else
+      if(CalcDigits == 4 || CalcDigits == 5)
+         CalcPoint = 0.0001;
+   return(CalcPoint);
+  }
+// Get Slippage Function
+int GetSlippage(string Currency, int SlippagePips)
+  {
+   int CalcDigits = MarketInfo(Currency,MODE_DIGITS);
+   if(CalcDigits == 2 || CalcDigits == 4)
+      double CalcSlippage = SlippagePips;
+   else
+      if(CalcDigits == 3 || CalcDigits == 5)
+         CalcSlippage = SlippagePips * 10;
+   return(CalcSlippage);
+  }
+//+------------------------------------------------------------------+
+//+ Break Even                                                       |
+//+------------------------------------------------------------------+
 bool BreakEven(int MN){
   int Ticket;
   for(int i = OrdersTotal() - 1; i >= 0; i--) {
@@ -69,90 +125,4 @@ bool BreakEven(int MN){
       }
     }
   return(Ticket);
-}
-//+------------------------------------------------------------------+ 
-//+ It works like onTick Function                                    | 
-//+------------------------------------------------------------------+ 
-int start()
-{
-  int cnt, ticket, total;
-  double shortSma, longSma, ShortSL, ShortTP, LongSL, LongTP;
-  // Parameter Sanity checking 
-  if(PeriodTwo < PeriodOne){
-    Print("Please check settings, Period Two is lesser then the first period");
-    return(0);
-  }
-  if(Bars < PeriodTwo){
-    Print("Please check settings, less then the second period bars available for the long SMA");
-    return(0);
-  }
-  // Calculate the SMAs from the iMA indicator in MODE_SMMA using the close price 
-  shortSma = iMA(NULL, 0, PeriodOne, 0, MODE_SMMA, PRICE_CLOSE, 0);
-  longSma = iMA(NULL, 0, PeriodTwo, 0, MODE_SMMA, PRICE_CLOSE, 0);
-  // Check if there has been a cross on this tick from the two SMAs 
-  int isCrossed = CheckForCross(shortSma, longSma);
-  // Get the current total orders 
-  total = OrdersTotal();
-  // Calculate Stop Loss and Take profit 
-  if(StopLoss > 0){
-    ShortSL = Bid+(StopLoss*Point);
-    LongSL = Ask-(StopLoss*Point);
-  }
-  if(TakeProfit > 0){
-    ShortTP = Bid-(TakeProfit*Point);
-    LongTP = Ask+(TakeProfit*Point);
-  }
-  // Only open one trade at a time.. 
-  if(total < 1){
-    // Buy - Long position 
-    if(isCrossed == 1){
-        ticket = OrderSend(Symbol(), OP_BUY, LotsOptimized(),Ask,5, LongSL, LongTP, "Double SMA Crossover",MAGICNUM,0,Blue);
-        if(ticket > 0){
-          if(OrderSelect(ticket, SELECT_BY_TICKET, MODE_TRADES))
-            Print("BUY Order Opened: ", OrderOpenPrice(), " SL:", LongSL, " TP: ", LongTP);
-          }
-          else
-            Print("Error Opening BUY Order: ", GetLastError());
-            return(0);
-        }
-    // Sell - Short position 
-    if(isCrossed == 2){
-      ticket = OrderSend(Symbol(), OP_SELL, LotsOptimized(),Bid,5, ShortSL, ShortTP, "Double SMA Crossover",MAGICNUM,0,Red);
-      if(ticket > 0){
-        if(OrderSelect(ticket, SELECT_BY_TICKET, MODE_TRADES))
-          Print("SELL Order Opened: ", OrderOpenPrice(), " SL:", ShortSL, " TP: ", ShortTP);
-        }
-        else
-          Print("Error Opening SELL Order: ", GetLastError());
-          return(0);
-      }
-    }
-  // Manage open orders for exit criteria 
-  for(cnt = 0; cnt < total; cnt++){
-    OrderSelect(cnt, SELECT_BY_POS, MODE_TRADES);
-    if(OrderType() <= OP_SELL && OrderSymbol() == Symbol()){
-      // Look for long positions 
-      if(OrderType() == OP_BUY){
-        // Check for Exit criteria on buy - change of direction 
-        if(isCrossed == 2){
-          OrderClose(OrderTicket(), OrderLots(), Bid, 3, Violet); // Close the position 
-          return(0);
-        }
-      }
-      else //Look for short positions - inverse of prior conditions 
-      {
-        // Check for Exit criteria on sell - change of direction 
-        if(isCrossed == 1){
-          OrderClose(OrderTicket(), OrderLots(), Ask, 3, Violet); // Close the position 
-          return(0);
-        }
-      }
-      // If we are in a loss - Try to BreakEven 
-      Print("Current Unrealized Profit on Order: ", OrderProfit());
-      if(OrderProfit() < 0){
-        BreakEven(MAGICNUM);
-      }
-    }
-  }
-  return(0);
 }
