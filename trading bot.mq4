@@ -70,7 +70,7 @@ int start()
       if(TakeProfit > 0)
          double BuyTakeProfit = OpenPrice + (TakeProfit * UsePoint);
       // Open buy order
-      BuyTicket = OrderSend(Symbol(),OP_BUY,LotSize,OpenPrice,UseSlippage,BuyStopLoss,BuyTakeProfit,"Buy Order",MagicNumber,0,Green);
+      BuyTicket = OrderSend(Symbol(),OP_BUY,LotSize,OpenPrice,UseSlippage,BuyStopLoss,BuyTakeProfit,"Buy Order",MAGICNUM,0,Green);
       SellTicket = 0;
      }
 //----- Sell Order
@@ -88,33 +88,32 @@ int start()
          double SellStopLoss = OpenPrice + (StopLoss * UsePoint);
       if(TakeProfit > 0)
          double SellTakeProfit = OpenPrice - (TakeProfit * UsePoint);
-      SellTicket = OrderSend(Symbol(),OP_SELL,LotSize,OpenPrice,UseSlippage,SellStopLoss,SellTakeProfit,"Sell Order",MagicNumber,0,Red);
+      SellTicket = OrderSend(Symbol(),OP_SELL,LotSize,OpenPrice,UseSlippage,SellStopLoss,SellTakeProfit,"Sell Order",MAGICNUM,0,Red);
       BuyTicket = 0;
      }
    for(int i = OrdersTotal() - 1; i >= 0; i--) //iterates through all open orders
      {
       if(OrderSelect(i, SELECT_BY_POS, MODE_TRADES))  //selects open order
         {
-         
+
          if(OrderProfit() < 0)  //If order in Loss
            {
             Print("Loss detected, splitting position size and account balance");
             BreakEven(MAGICNUM); // Move the stop loss to breakEven point once the price has moved in the trader's favor
-            LotSize = NormalizeDouble(LotSize * 2, 2);
-            StopLoss = Bid + (80 * Point());
-            TakeProfit = Ask - (100 * Point());
-            
-            if(AccountEquity() < AccountBalance())  //Current balance less than Account Balance
-            {
-               LotSize = NormalizeDouble(LotSize / 2, 2);
-               balance = balance / 2; 
-               Trade(StopLoss, TakeProfit, OrderType(), LotSize);
-            }
+            LotSize = NormalizeDouble(LotSize * 2, 2); //if loss then, double the lot size
+            StopLoss = Bid + (80 * Point()); //set the stop loss 80 points above the bid price
+            TakeProfit = Ask - (100 * Point()); //set the take profit 80 points below the ask price
+
+            if(AccountEquity() < AccountBalance())  //If current balance is less than Account Balance
+              {
+               LotSize = NormalizeDouble(LotSize / 2, 2); //divides the lot size to two
+               balance = balance / 2; // splits the balance
+              }
            }
-          if(OrderProfit() > 0)  // Close the trade if it's in profit
-            {
-               OrderClose(OrderTicket(), LotSize, Bid, 5, Blue);
-            }        
+         if(OrderProfit() > 0)
+           {
+            OrderClose(OrderTicket(), LotSize, Bid, Slippage, Blue); // Close the trade if it's in profit
+           }
         }
      }
 
@@ -165,26 +164,4 @@ bool BreakEven(int MN)
      }
    return(Ticket);
   }
-//+------------------------------------------------------------------+
-//+ Split position Size                                              |
-//+------------------------------------------------------------------+
-void Trade(double stopLoss, double takeProfit, int orderType, double lotSize)
-  {
-   double price = NormalizeDouble(orderType == OP_BUY ? SymbolInfoDouble(Symbol(), SYMBOL_ASK) : SymbolInfoDouble(Symbol(), SYMBOL_BID), _Digits);
-   int ticket = OrderSend(Symbol(), orderType, lotSize, price, Slippage , stopLoss, takeProfit, "EA", MAGICNUM, 0, Yellow);
-   if(ticket > 0)  //If the trade is open
-     {
-      if(OrderSelect(ticket, SELECT_BY_TICKET))
-        {
-         Print("Order opened successfully");
-        }
-     }
-   else
-     {
-      // If there is no open order
-      Print("Order send failed with error code ", GetLastError());
-     }
-  }
 
-
-//+------------------------------------------------------------------+
