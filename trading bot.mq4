@@ -1,8 +1,9 @@
 //+------------------------------------------------------------------+
-//|                                                      ProjectName |
-//|                                      Copyright 2018, CompanyName |
-//|                                       http://www.companyname.net |
+//|                                                FOREX_TRADING.mq4 |
+//|                        Copyright 2023, MetaQuotes Software Corp. |
+//|                                             https://www.mql4.com |
 //+------------------------------------------------------------------+
+
 #property copyright   "2005-2014, MetaQuotes Software Corp."
 #property link        "http://www.mql4.com"
 #property description "Forex Trading Bot"
