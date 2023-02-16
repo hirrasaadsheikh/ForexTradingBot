@@ -1,9 +1,8 @@
 //+------------------------------------------------------------------+
 //|                                                FOREX_TRADING.mq4 |
 //|                        Copyright 2023, MetaQuotes Software Corp. |
-//|                                             https://www.mql4.com |
+//|                                             https://www.mql5.com |
 //+------------------------------------------------------------------+
-
 #property copyright   "2005-2014, MetaQuotes Software Corp."
 #property link        "http://www.mql4.com"
 #property description "Forex Trading Bot"
@@ -47,7 +46,7 @@ void OnDeinit(const int reason)
 int start()
   {
    double balance = AccountBalance();
-    int orderType = OP_BUY;
+   int orderType = OP_BUY;
    TickCount++;
    Comment("Current Account Balance: ",balance, "\nTicks Received:", TickCount);
 //----- Moving averages
@@ -92,36 +91,29 @@ int start()
       SellTicket = OrderSend(Symbol(),OP_SELL,LotSize,OpenPrice,UseSlippage,SellStopLoss,SellTakeProfit,"Sell Order",MagicNumber,0,Red);
       BuyTicket = 0;
      }
-     for (int i = OrdersTotal() - 1; i >= 0; i--)
+   for (int i = 0; i < OrdersTotal(); i++)
      {
       if (OrderSelect(i, SELECT_BY_POS, MODE_TRADES))
       {
          if (OrderProfit() < 0) 
          {
             Print("Loss detected, splitting position size and account balance");
+            BreakEven(MAGICNUM);   // If we are in a loss - Try to BreakEven 
             LotSize = LotSize*2;
             balance = balance/2;
-            
-            if (orderType == OP_BUY)//If the order is buy then the next order will be sell
+         
+            if (OrderType() == OP_BUY)
              {
-              orderType = OP_SELL; // after buy, sell order
+              Trade(StopLoss, TakeProfit, OP_BUY, LotSize); 
              }
-              else if (orderType == OP_SELL)//If the order is sell then the next order will be sell
+              else 
              {
-               orderType = OP_BUY; //after sell, buy order
-             }
-             Trade(StopLoss, TakeProfit, orderType, LotSize);
-                break;
+              Trade(StopLoss, TakeProfit, OP_SELL, LotSize); 
+             }            
          }
-      }
-     }
-     
-      // If we are in a loss - Try to BreakEven 
-      Print("Current Unrealized Profit on Order: ", OrderProfit());
-      if(OrderProfit() < 0){
-        BreakEven(MAGICNUM);
-      }
-      
+       }
+     } 
+             
    return(0);
   }
 //+------------------------------------------------------------------+
@@ -185,3 +177,5 @@ void Trade(double stopLoss, double takeProfit, int orderType, double lotSize)
         Print("Order send failed with error code ", GetLastError());
     }
 }
+
+
