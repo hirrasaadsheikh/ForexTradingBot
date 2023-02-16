@@ -184,5 +184,3 @@ void Trade(double stopLoss, double takeProfit, int orderType, double lotSize)
         Print("Order send failed with error code ", GetLastError());
     }
 }
-
-
