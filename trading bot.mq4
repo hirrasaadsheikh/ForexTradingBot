@@ -10,8 +10,8 @@
 #define MAGICNUM 20131111 
 // External variables
 extern double LotSize = 0.1;
-extern double StopLoss = 50;
-extern double TakeProfit = 100;
+extern double StopLoss = 100;
+extern double TakeProfit = 200;
 extern int Slippage = 5;
 extern int MagicNumber = 123;
 extern int FastMAPeriod = 10;
@@ -27,21 +27,32 @@ int UseSlippage;
 // Init function
 int init()
   {
-   UsePoint = PipPoint(Symbol());
-   UseSlippage = GetSlippage(Symbol(),Slippage);
+   UsePoint = PipPoint(Symbol());  //get the pip value, which is the smallest price change that the currency can make
+   UseSlippage = GetSlippage(Symbol(),Slippage); //used to get the current slippage for the current symbol
   }
 //+------------------------------------------------------------------+
-//+ Start onTick Function                                            |
+//| Expert deinitialization function                                 |
+//+------------------------------------------------------------------+
+void OnDeinit(const int reason)
+  {
+//---
+   Print("DeInitialized OK");
+
+   return(0);
+ }  
+//+------------------------------------------------------------------+
+//+ onTick Function                                                  |
 //+------------------------------------------------------------------+
 int start()
   {
    double balance = AccountBalance();
+    int orderType = OP_BUY;
    TickCount++;
    Comment("Current Account Balance: ",balance, "\nTicks Received:", TickCount);
-// Moving averages
+//----- Moving averages
    double FastMA = iMA(NULL,0,FastMAPeriod,0,0,0,0);
    double SlowMA = iMA(NULL,0,SlowMAPeriod,0,0,0,0);
-// Buy order
+//----- Buy order
    if(FastMA > SlowMA && BuyTicket == 0)
      {
       OrderSelect(SellTicket,SELECT_BY_TICKET);
@@ -60,9 +71,9 @@ int start()
          double BuyTakeProfit = OpenPrice + (TakeProfit * UsePoint);
       // Open buy order
       BuyTicket = OrderSend(Symbol(),OP_BUY,LotSize,OpenPrice,UseSlippage,BuyStopLoss,BuyTakeProfit,"Buy Order",MagicNumber,0,Green);
-      SellTicket = 0;
+      SellTicket = 0; 
      }
-// Sell Order
+//----- Sell Order
    if(FastMA < SlowMA && SellTicket == 0)
      {
       OrderSelect(BuyTicket,SELECT_BY_TICKET);
@@ -72,7 +83,7 @@ int start()
          ClosePrice = Bid;
          Closed = OrderClose(BuyTicket,CloseLots,ClosePrice,UseSlippage,Red);
         }
-      OpenPrice = Bid;s
+      OpenPrice = Bid;
       if(StopLoss > 0)
          double SellStopLoss = OpenPrice + (StopLoss * UsePoint);
       if(TakeProfit > 0)
@@ -80,11 +91,36 @@ int start()
       SellTicket = OrderSend(Symbol(),OP_SELL,LotSize,OpenPrice,UseSlippage,SellStopLoss,SellTakeProfit,"Sell Order",MagicNumber,0,Red);
       BuyTicket = 0;
      }
+     for (int i = OrdersTotal() - 1; i >= 0; i--)
+     {
+      if (OrderSelect(i, SELECT_BY_POS, MODE_TRADES))
+      {
+         if (OrderProfit() < 0) 
+         {
+            Print("Loss detected, splitting position size and account balance");
+            LotSize = LotSize*2;
+            balance = balance/2;
+            
+            if (orderType == OP_BUY)//If the order is buy then the next order will be sell
+             {
+              orderType = OP_SELL; // after buy, sell order
+             }
+              else if (orderType == OP_SELL)//If the order is sell then the next order will be sell
+             {
+               orderType = OP_BUY; //after sell, buy order
+             }
+             Trade(StopLoss, TakeProfit, orderType, LotSize);
+                break;
+         }
+      }
+     }
+     
       // If we are in a loss - Try to BreakEven 
       Print("Current Unrealized Profit on Order: ", OrderProfit());
       if(OrderProfit() < 0){
         BreakEven(MAGICNUM);
       }
+      
    return(0);
   }
 //+------------------------------------------------------------------+
@@ -100,7 +136,9 @@ double PipPoint(string Currency)
          CalcPoint = 0.0001;
    return(CalcPoint);
   }
-// Get Slippage Function
+//+------------------------------------------------------------------+
+//+ Slippage Function                                                    |
+//+------------------------------------------------------------------+
 int GetSlippage(string Currency, int SlippagePips)
   {
    int CalcDigits = MarketInfo(Currency,MODE_DIGITS);
@@ -126,3 +164,25 @@ bool BreakEven(int MN){
     }
   return(Ticket);
 }
+//+------------------------------------------------------------------+
+//+ Split position Size                                                     |
+//+------------------------------------------------------------------+
+void Trade(double stopLoss, double takeProfit, int orderType, double lotSize)
+{
+   double price = NormalizeDouble(SymbolInfoDouble(Symbol(), SYMBOL_ASK), _Digits);
+   int ticket = OrderSend(Symbol(), orderType, lotSize, price, Slippage, stopLoss, takeProfit, "", MAGICNUM, 0, Red);
+    if (ticket > 0) //If the trade is open
+    {
+        if (OrderSelect(ticket, SELECT_BY_TICKET))
+        {
+            Print("Order opened successfully");
+        }
+    }
+    else 
+    {
+        // If there is no open order
+        Print("Order send failed with error code ", GetLastError());
+    }
+}
+
+
