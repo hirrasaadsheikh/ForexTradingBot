@@ -7,7 +7,7 @@
 #property link        "http://www.mql4.com"
 #property description "Forex Trading Bot"
 
-#define MAGICNUM 20131111 
+#define MAGICNUM 20131111
 // External variables
 extern double LotSize = 0.1;
 extern double StopLoss = 100;
@@ -39,14 +39,14 @@ void OnDeinit(const int reason)
    Print("DeInitialized OK");
 
    return(0);
- }  
+  }
 //+------------------------------------------------------------------+
 //+ onTick Function                                                  |
 //+------------------------------------------------------------------+
 int start()
   {
+   int    losses=0; // number of losses orders without a break
    double balance = AccountBalance();
-   int orderType = OP_BUY;
    TickCount++;
    Comment("Current Account Balance: ",balance, "\nTicks Received:", TickCount);
 //----- Moving averages
@@ -71,7 +71,7 @@ int start()
          double BuyTakeProfit = OpenPrice + (TakeProfit * UsePoint);
       // Open buy order
       BuyTicket = OrderSend(Symbol(),OP_BUY,LotSize,OpenPrice,UseSlippage,BuyStopLoss,BuyTakeProfit,"Buy Order",MagicNumber,0,Green);
-      SellTicket = 0; 
+      SellTicket = 0;
      }
 //----- Sell Order
    if(FastMA < SlowMA && SellTicket == 0)
@@ -91,29 +91,33 @@ int start()
       SellTicket = OrderSend(Symbol(),OP_SELL,LotSize,OpenPrice,UseSlippage,SellStopLoss,SellTakeProfit,"Sell Order",MagicNumber,0,Red);
       BuyTicket = 0;
      }
-   for (int i = 0; i < OrdersTotal(); i++)
+   for(int i = OrdersTotal() - 1; i >= 0; i--) //iterates through all open orders
      {
-      if (OrderSelect(i, SELECT_BY_POS, MODE_TRADES))
-      {
-         if (OrderProfit() < 0) 
-         {
-            Print("Loss detected, splitting position size and account balance");
-            BreakEven(MAGICNUM);   // If we are in a loss - Try to BreakEven 
-            LotSize = LotSize*2;
-            balance = balance/2;
+      if(OrderSelect(i, SELECT_BY_POS, MODE_TRADES))  //selects open order
+        {
          
-            if (OrderType() == OP_BUY)
-             {
-              Trade(StopLoss, TakeProfit, OP_BUY, LotSize); 
-             }
-              else 
-             {
-              Trade(StopLoss, TakeProfit, OP_SELL, LotSize); 
-             }            
-         }
-       }
-     } 
-             
+         if(OrderProfit() < 0)  //If order in Loss
+           {
+            Print("Loss detected, splitting position size and account balance");
+            BreakEven(MAGICNUM); // Move the stop loss to breakEven point once the price has moved in the trader's favor
+            LotSize = NormalizeDouble(LotSize * 2, 2);
+            StopLoss = Bid + (80 * Point());
+            TakeProfit = Ask - (100 * Point());
+            
+            if(AccountEquity() < AccountBalance())  //Current balance less than Account Balance
+            {
+               LotSize = NormalizeDouble(LotSize / 2, 2);
+               balance = balance / 2; 
+               Trade(StopLoss, TakeProfit, OrderType(), LotSize);
+            }
+           }
+          if(OrderProfit() > 0)  // Close the trade if it's in profit
+            {
+               OrderClose(OrderTicket(), LotSize, Bid, 5, Blue);
+            }        
+        }
+     }
+
    return(0);
   }
 //+------------------------------------------------------------------+
@@ -145,37 +149,42 @@ int GetSlippage(string Currency, int SlippagePips)
 //+------------------------------------------------------------------+
 //+ Break Even                                                       |
 //+------------------------------------------------------------------+
-bool BreakEven(int MN){
-  int Ticket;
-  for(int i = OrdersTotal() - 1; i >= 0; i--) {
-    OrderSelect(i, SELECT_BY_POS, MODE_TRADES);
-    if(OrderSymbol() == Symbol() && OrderMagicNumber() == MN){
-      Ticket = OrderModify(OrderTicket(), OrderOpenPrice(), OrderOpenPrice(), OrderTakeProfit(), 0, Green);
-      if(Ticket < 0) Print("Error in Break Even : ", GetLastError());
-        break;
-      }
-    }
-  return(Ticket);
-}
+bool BreakEven(int MN)
+  {
+   int Ticket;
+   for(int i = OrdersTotal() - 1; i >= 0; i--)
+     {
+      OrderSelect(i, SELECT_BY_POS, MODE_TRADES);
+      if(OrderSymbol() == Symbol() && OrderMagicNumber() == MN)
+        {
+         Ticket = OrderModify(OrderTicket(), OrderOpenPrice(), OrderOpenPrice(), OrderTakeProfit(), 0, Yellow);
+         if(Ticket < 0)
+            Print("Error in Break Even : ", GetLastError());
+         break;
+        }
+     }
+   return(Ticket);
+  }
 //+------------------------------------------------------------------+
-//+ Split position Size                                                     |
+//+ Split position Size                                              |
 //+------------------------------------------------------------------+
 void Trade(double stopLoss, double takeProfit, int orderType, double lotSize)
-{
-   double price = NormalizeDouble(SymbolInfoDouble(Symbol(), SYMBOL_ASK), _Digits);
-   int ticket = OrderSend(Symbol(), orderType, lotSize, price, Slippage, stopLoss, takeProfit, "", MAGICNUM, 0, Red);
-    if (ticket > 0) //If the trade is open
-    {
-        if (OrderSelect(ticket, SELECT_BY_TICKET))
+  {
+   double price = NormalizeDouble(orderType == OP_BUY ? SymbolInfoDouble(Symbol(), SYMBOL_ASK) : SymbolInfoDouble(Symbol(), SYMBOL_BID), _Digits);
+   int ticket = OrderSend(Symbol(), orderType, lotSize, price, Slippage , stopLoss, takeProfit, "EA", MAGICNUM, 0, Yellow);
+   if(ticket > 0)  //If the trade is open
+     {
+      if(OrderSelect(ticket, SELECT_BY_TICKET))
         {
-            Print("Order opened successfully");
+         Print("Order opened successfully");
         }
-    }
-    else 
-    {
-        // If there is no open order
-        Print("Order send failed with error code ", GetLastError());
-    }
-}
+     }
+   else
+     {
+      // If there is no open order
+      Print("Order send failed with error code ", GetLastError());
+     }
+  }
 
 
+//+------------------------------------------------------------------+
