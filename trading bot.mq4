@@ -7,13 +7,12 @@
 #property link        "http://www.mql4.com"
 #property description "Forex Trading Bot"
 
-#define MAGICNUM 20131111
+#define MAGICNUM 20131111 //the magic number is used to uniquely identify the trades
 // External variables
 extern double LotSize = 0.1;
 extern double StopLoss = 100;
 extern double TakeProfit = 200;
 extern int Slippage = 5;
-extern int MagicNumber = 123;
 extern int FastMAPeriod = 10;
 extern int SlowMAPeriod = 20;
 
@@ -45,7 +44,6 @@ void OnDeinit(const int reason)
 //+------------------------------------------------------------------+
 int start()
   {
-   int    losses=0; // number of losses orders without a break
    double balance = AccountBalance();
    TickCount++;
    Comment("Current Account Balance: ",balance, "\nTicks Received:", TickCount);
@@ -112,7 +110,7 @@ int start()
            }
          if(OrderProfit() > 0)
            {
-            OrderClose(OrderTicket(), LotSize, Bid, Slippage, Blue); // Close the trade if it's in profit
+           StopLossEquity(); //if the trader is at risk of losing more than the maximum allowable amount. If this is the case, the code closes all open positions to prevent further losses.
            }
         }
      }
@@ -133,7 +131,7 @@ double PipPoint(string Currency)
    return(CalcPoint);
   }
 //+------------------------------------------------------------------+
-//+ Slippage Function                                                    |
+//+ Slippage Function                                                |
 //+------------------------------------------------------------------+
 int GetSlippage(string Currency, int SlippagePips)
   {
@@ -164,4 +162,21 @@ bool BreakEven(int MN)
      }
    return(Ticket);
   }
-
+//+------------------------------------------------------------------+
+//| Equity Stop Loss                                                 |
+//+------------------------------------------------------------------+
+void StopLossEquity()
+  {
+//counts all open orders
+   for(int i=OrdersTotal(); i>=0; i--)
+      //selects open order
+      if(OrderSelect(i,SELECT_BY_POS) == TRUE)
+         //checks the currency pair we are trading
+         if(OrderSymbol() == Symbol())
+           {
+            //get the type of the current order
+            int type = OrderType();
+            //get the boolean variable for the result and close the order
+            bool result = OrderClose(OrderTicket(), OrderLots(), MarketInfo(OrderSymbol(), MODE_BID),5,Red);
+           }
+  }
